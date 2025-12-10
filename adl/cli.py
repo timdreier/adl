@@ -1,32 +1,18 @@
-#!/usr/bin/env python3
-
-# Copyright (C) 2020
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
-
 import argparse
 import logging
 import sys
-import getpass
 
-from adl import login, epub_get, account, device, db, data
+from . import login, epub_get, account, device, db, data
+
 
 def adobe_login(args):
   password = None
   if args.user is not None:
+    import getpass
     password = getpass.getpass()
 
   login.login(args.user, password)
+
 
 def list_accounts(args):
   print("Accounts (* shows currently used account):")
@@ -36,14 +22,18 @@ def list_accounts(args):
       marker = '*'
     print(("- {} {} - {} ({})".format(marker, a.urn, a.sign_id, a.sign_method)))
 
+
 def delete_account(args):
   account.account_delete(args.urn)
+
 
 def set_default_account(args):
   account.set_default_account(args.urn)
 
-def get_ebook(args):
+
+def get_ebook_cmd(args):
   epub_get.get_ebook(args.filename)
+
 
 def list_devices(args):
   print("Known devices:")
@@ -54,8 +44,10 @@ def list_devices(args):
   else:
     print("No registered device")
 
+
 def register_device(args):
   device.device_register(args.mountpoint)
+
 
 def main():
   parser = argparse.ArgumentParser(description='Manipulate ACSM files')
@@ -64,7 +56,7 @@ def main():
 
   parser_get = subparsers.add_parser('get', help='Download ebook from an ACSM file')
   parser_get.add_argument('-f', '--filename', dest="filename", required=True, help='The ACSM file')
-  parser_get.set_defaults(func=get_ebook)
+  parser_get.set_defaults(func=get_ebook_cmd)
 
   parser_login = subparsers.add_parser('login', help='Login to Content Server')
   parser_login.add_argument('-u', '--user', dest="user", default=None, help='Login with this Adobe ID')
@@ -95,18 +87,12 @@ def main():
     parser.print_help()
     sys.exit(1)
 
-  # TODO now that adl is a package:
-  #   - Method should not "print" anything but return lists
-  #   - Data should not go through here
-  #   - module names do not really make sense
-
   if args.verbose:
     loglevel = logging.DEBUG
   else:
     loglevel = logging.INFO
   logging.basicConfig(format='%(levelname)s:%(message)s', level=loglevel)
 
-  # Call appropriate handler
   args.func(args)
 
 

@@ -1,0 +1,21 @@
+# Maintainer: Tim Dreier <hello@tim-dreier.de>
+pkgname=adl
+pkgver=0.1.0
+pkgrel=0
+pkgdesc="Download ebooks from Adobe .acsm files"
+url="https://github.com/adrienmetais/adl"
+arch="noarch"
+license="GPL-3.0"
+depends="python3 py3-requests py3-lxml py3-cryptography"
+makedepends="python3-dev py3-setuptools"
+source="adl-$pkgver.tar.gz"
+builddir="$srcdir/$pkgname-$pkgver"
+
+build() {
+	python3 setup.py build
+}
+
+package() {
+	python3 setup.py install --prefix=/usr --root="$pkgdir"
+}
+

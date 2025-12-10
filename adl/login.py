@@ -1,5 +1,6 @@
 import logging
 import base64
+import uuid
 
 from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography import x509
@@ -78,7 +79,14 @@ def generate_auth_data(user, password, binary_device_key):
 def sign_in(data, acc, user, password):
   d = Device()
   d.generate_key()
-  d.generate_fingerprint()
+
+  try:
+    d.generate_fingerprint()
+  except Exception:
+    logging.warning("Could not generate fingerprint from system. Generating a random one.")
+    machine_id = str(uuid.uuid4())
+    d.generate_fingerprint(machine_id)
+
   d.name = 'local'
 
   # Only supported methods for the moment

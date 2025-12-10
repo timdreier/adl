@@ -1,0 +1,109 @@
+name: Build Alpine Package
+
+on:
+  push:
+    tags:
+      - "*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        alpine: [3.14]
+    container: alpine:${{ matrix.alpine }}
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install build dependencies
+      run: |
+        apk update
+        apk add alpine-sdk sudo python3 py3-setuptools py3-requests py3-lxml py3-cryptography git github-cli
+
+    - name: Setup builder user
+      run: |
+        # Create builder user
+        adduser -D builder
+        addgroup builder abuild
+        echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+        
+        # Generate signing keys (non-interactive)
+        su builder -c "abuild-keygen -n"
+        
+        # Configure abuild.conf to use the generated key
+        # Use find to locate the key reliably regardless of arch naming
+        PRIV_KEY=$(find /home/builder/.abuild/ -name "*.rsa" | head -n 1)
+        echo "PACKAGER_PRIVKEY=$PRIV_KEY" >> /home/builder/.abuild/abuild.conf
+        
+        # Manually install the public key to trusted keys so local repo index can be signed/verified
+        cp /home/builder/.abuild/*.rsa.pub /etc/apk/keys/
+
+    - name: Set version from tag
+      run: |
+        VERSION="${GITHUB_REF_NAME}"
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+        echo "ALPINE=${{ matrix.alpine }}" >> $GITHUB_ENV
+
+    - name: Align versions (APKBUILD + setup.py)
+      run: |
+        VERSION="$VERSION"
+        sed -i "s/^pkgver=.*/pkgver=$VERSION/" alpine/APKBUILD
+        sed -i "s/^pkgrel=.*/pkgrel=0/" alpine/APKBUILD
+        sed -i "s/version='[^']*'/version='$VERSION'/" setup.py
+
+    - name: Prepare source
+      run: |
+        # Create tarball with correct prefix structure: adl-$VERSION/
+        # Write to /tmp first to avoid "file changed as we read it" error
+        tar --exclude=.git --exclude=.github --exclude=alpine --transform "s|^|adl-$VERSION/|" -czvf /tmp/adl-$VERSION.tar.gz .
+        
+        # Move source to where APKBUILD expects it (same dir or source cache)
+        # We will run build from the alpine/ directory
+        mv /tmp/adl-$VERSION.tar.gz alpine/
+        
+        # Fix permissions
+        chown -R builder:builder .
+
+    - name: Build package
+      run: |
+        cd alpine
+        
+        # Generate checksums for the new tarball
+        su builder -c "abuild checksum"
+        
+        # Build the package
+        su builder -c "abuild -r"
+        
+        # List files to debug location
+        find /home/builder/packages -name "*.apk"
+
+    - name: Find APK
+      id: find_apk
+      run: |
+        APK_PATH=$(find /home/builder/packages -name "adl-*.apk" | head -n 1)
+        echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: adl-alpine-${{ matrix.alpine }}
+        path: ${{ steps.find_apk.outputs.apk_path }}
+
+    - name: Create/Update GitHub Release
+      if: ${{ steps.find_apk.outputs.apk_path != '' }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        VERSION: ${{ env.VERSION }}
+        APK_PATH: ${{ steps.find_apk.outputs.apk_path }}
+      run: |
+        ALPINE="${{ matrix.alpine }}"
+        ASSET_NAME="adl-${VERSION}-alpine-${ALPINE}.apk"
+        TARGET="/tmp/${ASSET_NAME}"
+        cp "$APK_PATH" "$TARGET"
+        # Create release if missing, otherwise just upload/overwrite asset
+        REPO="${GITHUB_REPOSITORY}"
+        gh release view "$VERSION" --repo "$REPO" >/dev/null 2>&1 || gh release create "$VERSION" --repo "$REPO" --title "adl $VERSION" --notes "Alpine package for adl $VERSION"
+        gh release upload "$VERSION" "$TARGET" --repo "$REPO" --clobber
+
