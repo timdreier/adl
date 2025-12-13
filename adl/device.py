@@ -24,10 +24,15 @@ def device_register(mountpoint, force=False):
 
   # Check it is not already in our db
   devices = current_account.devices
+  device_in_db = False
   for device in devices:
     if device.fingerprint == d.fingerprint:
-      print("Device already exists in the DB")
-      return
+      device_in_db = True
+      if not force:
+        print("Device already exists in the DB. Use --force to re-activate.")
+        return
+      else:
+        logging.warning("Device already in DB. Force flag is set, re-activating...")
 
   # Check if it is not already activated
   username, plk, device_id = read_activation_file(mountpoint)
@@ -61,8 +66,9 @@ def device_register(mountpoint, force=False):
   logging.debug(activation_file_content)
 
   if write_activation_file(mountpoint, activation_file_content):
-    # Store info in db
-    data.add_device(current_account.urn, d)
+    # Store info in db (only if not already there)
+    if not device_in_db:
+      data.add_device(current_account.urn, d)
     print("Activation successful")
   else:
     print("Error while writing activation file")
