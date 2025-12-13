@@ -106,7 +106,7 @@ def read_activation_file(mountpoint):
 
 def write_activation_file(mountpoint, content):
   try:
-    with open("{}/.adobe-digital-editions/activation.xml".format(mountpoint), "w") as activation_file:
+    with open("{}/.adobe-digital-editions/activation.xml".format(mountpoint), "wb") as activation_file:
       activation_file.write(content)
   except Exception:
     logging.exception("Error while updating device !")
