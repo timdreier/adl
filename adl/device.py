@@ -8,7 +8,7 @@ from .bom import Device
 from . import data
 
 ###### Register devices
-def device_register(mountpoint):
+def device_register(mountpoint, force=False):
   logging.info("Looking for ADEPT support on {}".format(mountpoint))
   d = read_device_file(mountpoint)
   if d is None:
@@ -31,17 +31,20 @@ def device_register(mountpoint):
 
   if username is not None and plk is not None:
     # Already activated
-    a = data.find_account_by_sign(username)
-    if a is not None:
-      if a.get_private_key() == plk:
-        # Activated by a known user
-        logging.info("Device is already activated for user {} but is not known by adl, registering it".format(username))
-        d.device_id = device_id
-        data.add_device(a.urn, d)
-        return
+    if not force:
+      a = data.find_account_by_sign(username)
+      if a is not None:
+        if a.get_private_key() == plk:
+          # Activated by a known user
+          logging.info("Device is already activated for user {} but is not known by adl, registering it".format(username))
+          d.device_id = device_id
+          data.add_device(a.urn, d)
+          return
 
-    logging.error("Device is already activated for an unknown user. Doing nothing or all books on the device will become unreadable")
-    return 
+      logging.error("Device is already activated for an unknown user. Use --force to override the existing authorization")
+      return
+    else:
+      logging.warning("Device is already activated. Force flag is set, overwriting existing authorization...") 
 
   # Activate device
   logging.info("Activating device ...")

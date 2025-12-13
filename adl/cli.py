@@ -46,7 +46,7 @@ def list_devices(args):
 
 
 def register_device(args):
-  device.device_register(args.mountpoint)
+  device.device_register(args.mountpoint, force=args.force)
 
 
 def main():
@@ -79,6 +79,8 @@ def main():
   parser_dlist.set_defaults(func=list_devices)
   parser_detect = device_sp.add_parser('register', help='Register reader')
   parser_detect.add_argument('mountpoint', help='Reader root fs mountpoint')
+  parser_detect.add_argument('-f', '--force', dest='force', action='store_true', default=False, 
+                             help='Force re-authorization even if device is already activated')
   parser_detect.set_defaults(func=register_device)
 
   args = parser.parse_args()
