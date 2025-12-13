@@ -15,6 +15,9 @@ def device_register(mountpoint, force=False):
     logging.error("This device does not seem to support ADEPT DRM")
     return
 
+  # Generate device key for this external device
+  d.generate_key()
+
   current_account = data.get_current_account()
   if current_account is None:
     logging.error("Please log in with a user and select it first")
